@@ -1,0 +1,21 @@
+menu "Network Credentials"
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default ""
+        help
+            The network name you want to connect to.
+    
+    config WIFI_PASSWORD
+        string "WiFi password"
+        default ""
+        help
+            Your WiFi password.
+
+    config MQTT_BROKER_ADR
+        string "MQTT broker IP address"
+        default ""
+        help
+            Local IP of the machine running Mosquitto.
+                
+endmenu
