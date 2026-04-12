@@ -81,7 +81,25 @@ static void initialize_wifi()
     ESP_LOGI(TAG, "wifi started, waiting for connection");
 }
 
+static void wait_for_wifi()
+{
+    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+                                           WIFI_CONNECTED_BIT || WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    
+    if (bits & WIFI_CONNECTED_BIT) {
+        ESP_LOGI(TAG, "connected to SSID: %s", CONFIG_WIFI_SSID);
+    } else if (bits & WIFI_FAIL_BIT) {
+        ESP_LOGE(TAG, "failed to connect to SSID: %s", CONFIG_WIFI_SSID);
+    } else {
+        ESP_LOGE(TAG, "unexpected event");
+    }
+}
+
 void app_main(void)
 {
     initialize_wifi();
+    wait_for_wifi();
 }
