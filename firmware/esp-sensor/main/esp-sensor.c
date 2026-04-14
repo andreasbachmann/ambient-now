@@ -72,6 +72,16 @@ static i2c_bus_handle_t initialize_i2c()
     return (i2c_bus_create(I2C_NUM_0, &config));
 }
 
+// BME280
+static bme280_handle_t initialize_bme(i2c_bus_handle_t i2c_bus)
+{
+    bme280_handle_t bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT);
+    bme280_default_init(bme280);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    return bme280;
+}
+
 void app_main(void)
 {
     parse_MAC();
@@ -79,6 +89,14 @@ void app_main(void)
     initialize_espnow();
     
     i2c_bus_handle_t i2c_bus = initialize_i2c();
+    if (i2c_bus == NULL) {
+        ESP_LOGE(TAG, "failed to initialize I2C");
+    }
+
+    bme280_handle_t bme280 = initialize_bme(i2c_bus);
+    if (bme280 == NULL) {
+        ESP_LOGE(TAG, "failed to initialize BME280");
+    }
 
     esp_sleep_enable_timer_wakeup(SLEEP_TIME);
     esp_deep_sleep_start();
