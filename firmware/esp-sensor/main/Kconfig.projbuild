@@ -1,9 +1,21 @@
-menu "MAC address"
-    
+menu "Hardware Configuration"
+
     config BRIDGE_MAC_ADR
         string "ESP bridge MAC address"
         default ""
         help
-            The MAC address of the ESP bridge you are using.
-    
+            MAC address of the ESP-Bridge in format F4:2D:C9:6B:EE:38
+
+    config SDA_PIN_NUM
+        int "BME280 SDA pin number"
+        default 21
+        help
+            GPIO pin number for I2C SDA line connected to BME280.
+
+    config SCL_PIN_NUM
+        int "BME280 SCL pin number"
+        default 22
+        help
+            GPIO pin number for I2C SCL line connected to BME280.
+
 endmenu

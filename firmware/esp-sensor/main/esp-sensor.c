@@ -7,9 +7,15 @@
 #include "esp_mac.h"
 #include "esp_sleep.h"
 #include "esp_now.h"
+#include "i2c_bus.h"
+#include "bme280.h"
 
+
+// CONSTANTS
 static uint8_t bridge_mac[6];
-static const char *TAG = "ESPSENDER";
+static const char *TAG =                "ESPSENDER";
+static const uint64_t SLEEP_TIME =      1 * 30 * 1000000ULL;
+static const int I2C_MASTER_FREQ_HZ =   100000;
 
 // PARSE MAC ADR
 static void parse_MAC()
@@ -51,11 +57,28 @@ static void initialize_espnow()
     ESP_LOGI(TAG, "added bridge ESP with MAC " MACSTR, MAC2STR(bridge_mac));
 }
 
+// I2C
+static i2c_bus_handle_t initialize_i2c()
+{
+    i2c_config_t config = {
+        .mode =             I2C_MODE_MASTER,
+        .sda_io_num =       CONFIG_SDA_PIN_NUM,
+        .sda_pullup_en =    GPIO_PULLUP_ENABLE,
+        .scl_io_num =       CONFIG_SCL_PIN_NUM,
+        .scl_pullup_en =    GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ
+    };
+
+    return (i2c_bus_create(I2C_NUM_0, &config));
+}
+
 void app_main(void)
 {
     parse_MAC();
     initialize_wifi();
     initialize_espnow();
+    
+    i2c_bus_handle_t i2c_bus = initialize_i2c();
 
     esp_sleep_enable_timer_wakeup(SLEEP_TIME);
     esp_deep_sleep_start();
