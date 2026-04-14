@@ -1,0 +1,9 @@
+menu "MAC address"
+    
+    config BRIDGE_MAC_ADR
+        string "ESP bridge MAC address"
+        default ""
+        help
+            The MAC address of the ESP bridge you are using.
+    
+endmenu
