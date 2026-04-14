@@ -4,9 +4,12 @@
 #include "esp_log.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
+#include "mqtt_client.h"
 
 #define WIFI_CONNECTED_BIT  BIT0
 #define WIFI_FAIL_BIT       BIT1
+#define MQTT_CONNECTED_BIT  BIT2
+#define MQTT_FAIL_BIT       BIT3
 
 // GLOBALS
 static const char *TAG = "ESPBRIDGE";
@@ -15,8 +18,6 @@ static const char *TAG = "ESPBRIDGE";
 static EventGroupHandle_t       wifi_event_group;
 static int retries =            0;
 static const int MAX_RETRIES =  5;
-
-
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -84,7 +85,7 @@ static void initialize_wifi()
 static void wait_for_wifi()
 {
     EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
-                                           WIFI_CONNECTED_BIT || WIFI_FAIL_BIT,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE,
                                            pdFALSE,
                                            portMAX_DELAY);
@@ -98,8 +99,65 @@ static void wait_for_wifi()
     }
 }
 
+// MQTT
+static EventGroupHandle_t mqtt_event_group;
+static esp_mqtt_client_handle_t mqtt_client    = NULL;
+
+static void mqtt_event_handler(void *arg, esp_event_base_t event_base,
+                               int32_t event_id, void *event_data)
+{
+    if (event_id == MQTT_EVENT_CONNECTED) {
+        xEventGroupSetBits(mqtt_event_group, MQTT_CONNECTED_BIT);
+    } else if (event_id == MQTT_EVENT_DISCONNECTED) {
+        xEventGroupSetBits(mqtt_event_group, MQTT_FAIL_BIT);
+    }
+}
+
+
+static void initialize_mqtt()
+{
+    mqtt_event_group = xEventGroupCreate();
+
+    esp_mqtt_client_config_t mqtt_config = {
+        .broker.address.uri = CONFIG_MQTT_BROKER_ADR
+    };
+
+    mqtt_client = esp_mqtt_client_init(&mqtt_config);
+
+    if (mqtt_client == NULL) {
+        ESP_LOGE(TAG, "failed to initialize mqtt client");
+    }
+
+    ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client,
+                                                   ESP_EVENT_ANY_ID,
+                                                   mqtt_event_handler,
+                                                   NULL));
+    ESP_ERROR_CHECK(esp_mqtt_client_start(mqtt_client));
+}
+
+static void wait_for_mqtt()
+{
+    EventBits_t bits = xEventGroupWaitBits(mqtt_event_group,
+                                           MQTT_CONNECTED_BIT | MQTT_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    
+    if (bits & MQTT_CONNECTED_BIT) {
+        ESP_LOGI(TAG, "connected to MQTT broker: %s", CONFIG_MQTT_BROKER_ADR);
+    } else if (bits & MQTT_FAIL_BIT) {
+        ESP_LOGE(TAG, "failed to connect to MQTT broker: %s", CONFIG_MQTT_BROKER_ADR);
+    } else {
+        ESP_LOGE(TAG, "unexpected event");
+    }
+}
+
+
 void app_main(void)
 {
     initialize_wifi();
     wait_for_wifi();
+
+    initialize_mqtt();
+    wait_for_mqtt();
 }
