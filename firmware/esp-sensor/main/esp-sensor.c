@@ -9,6 +9,7 @@
 #include "esp_now.h"
 #include "i2c_bus.h"
 #include "bme280.h"
+#include "freertos/semphr.h"
 
 
 // CONSTANTS
@@ -53,6 +54,18 @@ static void initialize_wifi()
 }
 
 // ESPNOW
+static SemaphoreHandle_t send_semaphore = NULL;
+
+static void esp_now_callback(const esp_now_send_info_t *tx_info, esp_now_send_status_t status)
+{
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        ESP_LOGI(TAG, "sent readings successfully");
+    } else {
+        ESP_LOGE(TAG, "failed to send readings");
+    }
+    xSemaphoreGive(send_semaphore);
+}
+
 static void initialize_espnow()
 {
     ESP_ERROR_CHECK(esp_now_init());
@@ -62,7 +75,9 @@ static void initialize_espnow()
 
     ESP_ERROR_CHECK(esp_now_add_peer(&peer));
     ESP_LOGI(TAG, "added bridge ESP with MAC " MACSTR, MAC2STR(bridge_mac));
+    ESP_ERROR_CHECK(esp_now_register_send_cb(esp_now_callback));
 }
+
 
 // I2C
 static i2c_bus_handle_t initialize_i2c()
@@ -119,6 +134,10 @@ void app_main(void)
     }
 
     ambient_t reading = take_readings(bme280);
+
+    send_semaphore = xSemaphoreCreateBinary();
+    ESP_ERROR_CHECK(esp_now_send(bridge_mac, (uint8_t*) &reading, sizeof(reading)));
+    xSemaphoreTake(send_semaphore, portMAX_DELAY);
 
     esp_sleep_enable_timer_wakeup(SLEEP_TIME);
     esp_deep_sleep_start();
