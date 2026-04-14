@@ -17,6 +17,13 @@ static const char *TAG =                "ESPSENDER";
 static const uint64_t SLEEP_TIME =      1 * 30 * 1000000ULL;
 static const int I2C_MASTER_FREQ_HZ =   100000;
 
+// STRUCTS
+typedef struct {
+    float temperature;
+    float humidity;
+    float pressure;
+} ambient_t;
+
 // PARSE MAC ADR
 static void parse_MAC()
 {
@@ -76,10 +83,23 @@ static i2c_bus_handle_t initialize_i2c()
 static bme280_handle_t initialize_bme(i2c_bus_handle_t i2c_bus)
 {
     bme280_handle_t bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT);
-    bme280_default_init(bme280);
+    ESP_ERROR_CHECK(bme280_default_init(bme280));
     vTaskDelay(pdMS_TO_TICKS(100));
 
     return bme280;
+}
+
+static ambient_t take_readings(bme280_handle_t sensor)
+{
+    ambient_t reading = {0};
+
+    ESP_ERROR_CHECK(bme280_read_temperature(sensor, &reading.temperature));
+    ESP_ERROR_CHECK(bme280_read_humidity(sensor, &reading.humidity));
+    ESP_ERROR_CHECK(bme280_read_pressure(sensor, &reading.pressure));
+
+    ESP_LOGI(TAG, "took readings from BME280");
+
+    return reading;
 }
 
 void app_main(void)
@@ -97,6 +117,8 @@ void app_main(void)
     if (bme280 == NULL) {
         ESP_LOGE(TAG, "failed to initialize BME280");
     }
+
+    ambient_t reading = take_readings(bme280);
 
     esp_sleep_enable_timer_wakeup(SLEEP_TIME);
     esp_deep_sleep_start();
