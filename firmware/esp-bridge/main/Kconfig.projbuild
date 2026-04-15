@@ -12,7 +12,7 @@ menu "Network Credentials"
         help
             Your WiFi password.
 
-    config MQTT_BROKER_ADR
+    config MQTT_BROKER_ADDR
         string "MQTT broker IP address"
         default ""
         help

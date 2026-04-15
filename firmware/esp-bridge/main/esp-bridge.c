@@ -5,6 +5,7 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_sleep.h"
+#include "esp_now.h"
 #include "mqtt_client.h"
 
 #define WIFI_CONNECTED_BIT  BIT0
@@ -93,6 +94,27 @@ static bool initialize_wifi()
     return ((bits & WIFI_CONNECTED_BIT));
 }
 
+// ESPNOW
+static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len)
+{
+    uint8_t *mac_addr = recv_info->src_addr;
+
+    if (mac_addr == NULL || data == NULL || len <= 0) {
+        ESP_LOGE(TAG, "receive callback arg error");
+        return;
+    }
+    ESP_LOGI(TAG, "send data here");
+
+}
+
+static bool initialize_esp_now()
+{
+    ESP_ERROR_CHECK(esp_now_init());
+    ESP_ERROR_CHECK(esp_now_register_recv_cb(esp_now_receive_callback));
+
+    return true;
+}
+
 
 // MQTT
 static EventGroupHandle_t mqtt_event_group;
@@ -103,12 +125,12 @@ static void mqtt_event_handler(void *arg, esp_event_base_t event_base,
 {
     switch(event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "connected to MQTT broker: %s", CONFIG_MQTT_BROKER_ADR);
+            ESP_LOGI(TAG, "connected to MQTT broker: %s", CONFIG_MQTT_BROKER_ADDR);
             xEventGroupSetBits(mqtt_event_group, MQTT_CONNECTED_BIT);
             break;
         
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGW(TAG, "disconnected from MQTT broker: %s", CONFIG_MQTT_BROKER_ADR);
+            ESP_LOGW(TAG, "disconnected from MQTT broker: %s", CONFIG_MQTT_BROKER_ADDR);
             xEventGroupClearBits(mqtt_event_group, MQTT_CONNECTED_BIT);
             break;
         
@@ -132,7 +154,7 @@ static bool initialize_mqtt()
     mqtt_event_group = xEventGroupCreate();
 
     esp_mqtt_client_config_t mqtt_config = {
-        .broker.address.uri = CONFIG_MQTT_BROKER_ADR
+        .broker.address.uri = CONFIG_MQTT_BROKER_ADDR
     };
 
     mqtt_client = esp_mqtt_client_init(&mqtt_config);
@@ -164,9 +186,19 @@ void app_main(void)
         esp_deep_sleep_start();
     }
 
+    if (!initialize_esp_now()) {
+        ESP_LOGE(TAG, "ESPNOW initialization failed, going to sleep...");
+        esp_sleep_enable_timer_wakeup(SLEEP_TIME);
+        esp_deep_sleep_start();
+    }
+
     if (!initialize_mqtt()) {
         ESP_LOGE(TAG, "MQTT connection failed, going to sleep...");
         esp_sleep_enable_timer_wakeup(SLEEP_TIME);
         esp_deep_sleep_start();
+    }
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
