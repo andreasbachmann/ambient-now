@@ -15,7 +15,7 @@
 // CONSTANTS
 static uint8_t bridge_mac[6];
 static const char *TAG =                "ESPSENDER";
-static const uint64_t SLEEP_TIME =      1 * 30 * 1000000ULL;
+static const uint64_t SLEEP_TIME =      2 * 60 * 1000000ULL;
 static const int I2C_MASTER_FREQ_HZ =   100000;
 
 // STRUCTS

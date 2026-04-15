@@ -14,14 +14,19 @@
 #define MQTT_FAIL_BIT       BIT3
 
 // GLOBALS
-static const char *TAG =            "ESPBRIDGE";
-static const uint64_t SLEEP_TIME =   1 * 30 * 1000000ULL;
+static const char *TAG =                         "ESPBRIDGE";
+static const uint64_t SLEEP_TIME =               1 * 30 * 1000000ULL;
+static EventGroupHandle_t mqtt_event_group;
+static esp_mqtt_client_handle_t mqtt_client =    NULL;
+static EventGroupHandle_t wifi_event_group;
+static int retries =                             0;
+static const int MAX_RETRIES =                   5;
+
+// PRE-DEFINED
+static void send_data_to_broker(esp_mqtt_client_handle_t mqtt_client, float temperature,
+                                float humidity, float pressure);
 
 // WIFI
-static EventGroupHandle_t       wifi_event_group;
-static int retries =            0;
-static const int MAX_RETRIES =  5;
-
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
@@ -83,6 +88,7 @@ static bool initialize_wifi()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+
     ESP_LOGI(TAG, "wifi started, waiting for connection");
 
     EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
@@ -95,6 +101,12 @@ static bool initialize_wifi()
 }
 
 // ESPNOW
+typedef struct {
+    float temperature;
+    float humidity;
+    float pressure;
+} ambient_t;
+
 static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len)
 {
     uint8_t *mac_addr = recv_info->src_addr;
@@ -103,23 +115,20 @@ static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const
         ESP_LOGE(TAG, "receive callback arg error");
         return;
     }
-    ESP_LOGI(TAG, "send data here");
 
+    ambient_t reading = {0};
+    memcpy(&reading, data, sizeof(ambient_t));
+    send_data_to_broker(mqtt_client, reading.temperature, reading.humidity, reading.pressure);
 }
 
-static bool initialize_esp_now()
+static void initialize_esp_now()
 {
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(esp_now_receive_callback));
-
-    return true;
 }
 
 
 // MQTT
-static EventGroupHandle_t mqtt_event_group;
-static esp_mqtt_client_handle_t mqtt_client    = NULL;
-
 static void mqtt_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
@@ -178,6 +187,17 @@ static bool initialize_mqtt()
     return (bits & MQTT_CONNECTED_BIT);
 }
 
+static void send_data_to_broker(esp_mqtt_client_handle_t mqtt_client, float temperature,
+                                float humidity, float pressure)
+{
+    char body[128];
+    snprintf(body, sizeof(body),
+             "{\"temperature\": %.1f, \"humidity\": %.1f, \"pressure\": %.1f}",
+             temperature, humidity, pressure);
+    
+    esp_mqtt_client_publish(mqtt_client, "sensors/ambient", body, 0, 1, 0);
+}
+
 void app_main(void)
 {   
     if (!initialize_wifi()) {
@@ -186,11 +206,7 @@ void app_main(void)
         esp_deep_sleep_start();
     }
 
-    if (!initialize_esp_now()) {
-        ESP_LOGE(TAG, "ESPNOW initialization failed, going to sleep...");
-        esp_sleep_enable_timer_wakeup(SLEEP_TIME);
-        esp_deep_sleep_start();
-    }
+    initialize_esp_now();
 
     if (!initialize_mqtt()) {
         ESP_LOGE(TAG, "MQTT connection failed, going to sleep...");
