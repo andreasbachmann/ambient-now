@@ -4,3 +4,17 @@ sdkconfig
 sdkconfig.old
 .env
 .vscode/
+
+server/influxdb/*
+server/grafana/*
+!server/grafana/provisioning
+
+server/nodered/node_modules/
+server/nodered/.npm/
+server/nodered/lib/
+server/nodered/.config.*
+server/nodered/flows_cred.json
+server/nodered/*.backup
+
+server/mosquitto/data/
+server/mosquitto/log/
