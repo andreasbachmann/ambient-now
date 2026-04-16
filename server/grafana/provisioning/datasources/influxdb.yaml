@@ -1,14 +1,15 @@
 apiVersion: 1
 
 datasources:
-  - name: InfluxDB_v2.7_Flux
+  - name: InfluxDB_v2_Flux
     type: influxdb
     access: proxy
     url: http://influxdb:8086
+    uid: ambient-influxdb
     jsonData:
       version: Flux
       organization: homeiot
       defaultBucket: sensors
       tlsSkipVerify: true
     secureJsonData:
-      token: $__env{INFLUXDB_TOKEN}
+      token: $INFLUXDB_TOKEN
