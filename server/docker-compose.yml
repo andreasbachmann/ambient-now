@@ -49,4 +49,5 @@ services:
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
     restart: unless-stopped
 
-volumes: grafana_storage:
+volumes: 
+  grafana_storage:
