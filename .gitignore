@@ -12,6 +12,7 @@ server/grafana/*
 server/nodered/node_modules/
 server/nodered/.npm/
 server/nodered/lib/
+server/nodered/data/
 server/nodered/.config.*
 server/nodered/flows_cred.json
 server/nodered/*.backup
