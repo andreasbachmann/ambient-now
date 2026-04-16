@@ -10,6 +10,15 @@ services:
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
 
+  nodered:
+    build: ./nodered
+    container_name: nodered
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./nodered:/data
+    restart: unless-stopped
+
   influxdb:
     image: influxdb:2.7
     container_name: influxdb
@@ -26,23 +35,17 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
     restart: unless-stopped
 
-  nodered:
-    image: nodered/node-red:latest
-    container_name: nodered
-    ports:
-      - "1880:1880"
-    volumes:
-      - ./nodered:/data
-    restart: unless-stopped
-
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    user: "1000"
     ports:
       - "3000:3000"
     volumes:
-      - ./grafana:/var/lib/grafana
+      - ./grafana/data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/provisioning/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
     restart: unless-stopped
