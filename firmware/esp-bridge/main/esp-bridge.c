@@ -116,6 +116,11 @@ static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const
         return;
     }
 
+    if (len < sizeof(ambient_t)) {
+        ESP_LOGE(TAG, "received packet too small: %d bytes", len);
+        return;
+    }
+
     ambient_t reading = {0};
     memcpy(&reading, data, sizeof(ambient_t));
     send_data_to_broker(mqtt_client, reading.temperature, reading.humidity, reading.pressure);
