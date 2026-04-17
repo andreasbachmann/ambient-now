@@ -14,17 +14,16 @@
 #define MQTT_FAIL_BIT       BIT3
 
 // GLOBALS
-static const char *TAG =                         "ESPBRIDGE";
-static const uint64_t SLEEP_TIME =               1 * 30 * 1000000ULL;
+static const char *TAG = "ESPBRIDGE";
+static const uint64_t SLEEP_TIME = 1 * 30 * 1000000ULL;
 static EventGroupHandle_t mqtt_event_group;
-static esp_mqtt_client_handle_t mqtt_client =    NULL;
+static esp_mqtt_client_handle_t mqtt_client = NULL;
 static EventGroupHandle_t wifi_event_group;
-static int retries =                             0;
-static const int MAX_RETRIES =                   5;
+static int retries = 0;
+static const int MAX_RETRIES = 5;
 
 // PRE-DEFINED
-static void send_data_to_broker(esp_mqtt_client_handle_t mqtt_client, float temperature,
-                                float humidity, float pressure);
+static void send_data_to_broker(float temperature, float humidity, float pressure);
 
 // WIFI
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
@@ -123,7 +122,7 @@ static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const
 
     ambient_t reading = {0};
     memcpy(&reading, data, sizeof(ambient_t));
-    send_data_to_broker(mqtt_client, reading.temperature, reading.humidity, reading.pressure);
+    send_data_to_broker(reading.temperature, reading.humidity, reading.pressure);
 }
 
 static void initialize_esp_now()
@@ -192,8 +191,7 @@ static bool initialize_mqtt()
     return (bits & MQTT_CONNECTED_BIT);
 }
 
-static void send_data_to_broker(esp_mqtt_client_handle_t mqtt_client, float temperature,
-                                float humidity, float pressure)
+static void send_data_to_broker(float temperature, float humidity, float pressure)
 {
     char body[128];
     snprintf(body, sizeof(body),
@@ -211,13 +209,13 @@ void app_main(void)
         esp_deep_sleep_start();
     }
 
-    initialize_esp_now();
-
     if (!initialize_mqtt()) {
         ESP_LOGE(TAG, "MQTT connection failed, going to sleep...");
         esp_sleep_enable_timer_wakeup(SLEEP_TIME);
         esp_deep_sleep_start();
     }
+
+    initialize_esp_now();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
