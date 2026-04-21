@@ -39,7 +39,7 @@ docker compose up -d
 ```
 
 #### 4. Generate InfluxDB token
-After the stack starts, an InfluxDB token must be generated manually:
+After the stack starts, an InfluxDB token must be generated manually. If running on a remote server, replace localhost with your server's IP address in all subsequent steps:
 1. Open InfluxDB at `localhost:8086` and log in with the credentials you set in `.env`
 2. Navigate to Load Data -> API tokens
 3. Click Generate API Token, select "All Access API Token" and copy it
@@ -49,8 +49,8 @@ After the stack starts, an InfluxDB token must be generated manually:
 #### 5. Configure Node-RED
 1. Open Node-RED at `localhost:1880`
 2. Double-click the InfluxDB out node and open the server configuration
-3. Enter your InfluxDB API token and click done
-4. Click Deploy
+3. Enter your InfluxDB API token and click **Update**, then **Done**
+4. Click **Deploy**
 
 ### Firmware Setup
 Configure the WiFi credentials, MQTT broker address, MAC address and I2C pins via menuconfig before building.
