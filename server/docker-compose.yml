@@ -45,6 +45,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/provisioning/dashboards:/var/lib/grafana/dashboards
     environment:
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/ambient.json
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
     restart: unless-stopped
