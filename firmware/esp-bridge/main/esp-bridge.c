@@ -7,6 +7,9 @@
 #include "esp_sleep.h"
 #include "esp_now.h"
 #include "mqtt_client.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 
 #define WIFI_CONNECTED_BIT  BIT0
 #define WIFI_FAIL_BIT       BIT1
@@ -21,6 +24,7 @@ static esp_mqtt_client_handle_t mqtt_client = NULL;
 static EventGroupHandle_t wifi_event_group;
 static int retries = 0;
 static const int MAX_RETRIES = 5;
+static QueueHandle_t ambient_queue;
 
 // PRE-DEFINED
 static void send_data_to_broker(float temperature, float humidity, float pressure);
@@ -106,6 +110,16 @@ typedef struct {
     float pressure;
 } ambient_t;
 
+static void send_data_task(void *parameters)
+{
+    while (1) {
+        ambient_t reading = {0};
+        if (xQueueReceive(ambient_queue, &reading, portMAX_DELAY) == pdTRUE) {
+            send_data_to_broker(reading.temperature, reading.humidity, reading.pressure);
+        }
+    }
+}
+
 static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len)
 {
     uint8_t *mac_addr = recv_info->src_addr;
@@ -119,14 +133,16 @@ static void esp_now_receive_callback(const esp_now_recv_info_t *recv_info, const
         ESP_LOGE(TAG, "received packet too small: %d bytes", len);
         return;
     }
-
     ambient_t reading = {0};
     memcpy(&reading, data, sizeof(ambient_t));
-    send_data_to_broker(reading.temperature, reading.humidity, reading.pressure);
+    xQueueSend(ambient_queue, &reading, 0);
 }
 
 static void initialize_esp_now()
 {
+    ambient_queue = xQueueCreate(10, sizeof(ambient_t));
+    xTaskCreate(send_data_task, "Send Data over MQTT", 2048, NULL, 1, NULL);
+
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(esp_now_receive_callback));
 }
@@ -216,6 +232,7 @@ void app_main(void)
     }
 
     initialize_esp_now();
+
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
