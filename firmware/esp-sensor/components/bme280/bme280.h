@@ -5,8 +5,8 @@
 
 typedef struct {
     float temperature;
-    float pressure;
     float humidity;
+    float pressure;
 } ambient_t;
 
 esp_err_t init_bme280(i2c_master_dev_handle_t dev);
