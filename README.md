@@ -3,18 +3,39 @@ ambient-now is an IoT system that continuously measures temperature, humidity, a
 
 Two ESP32 microcontrollers form the hardware layer: one reads environmental data from a BME280 sensor and transmits it via ESP-NOW to a second ESP32, which bridges the data to a home server over MQTT. On the server, a Docker stack of Mosquitto, Node-RED, InfluxDB, and Grafana handles ingestion, storage, and visualization.
 
+## BME280 Driver
+
+Rather than using Espressif's managed BME280 component, this project includes a
+custom driver implemented as an ESP-IDF component (`firmware/esp-sensor/components/bme280`).
+
+The managed component depends on the `i2c_bus` abstraction layer, which is built
+on top of ESP-IDF's legacy I2C driver (`driver/i2c.h`). This legacy driver is
+officially deprecated and will be removed in a future ESP-IDF release. The custom
+driver uses the current `i2c_master` API (`driver/i2c_master.h`) directly,
+keeping dependencies minimal and the codebase compatible with current and future
+ESP-IDF versions.
+
+The driver handles:
+- Register communication over I2C
+- Calibration data parsing per the BME280 datasheet
+- Manufacturer compensation formulas for temperature, pressure, and humidity
+
 ## Prerequisites
 - git
 - [Docker](https://docs.docker.com/get-docker/)
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/)
 
+
 ## Getting Started
+
 ### Server Setup
+
 #### 1. Clone the repository
 ```bash
 git clone https://github.com/andreasbachmann/ambient-now
 cd ambient-now/server
 ```
+
 #### 2. Configure environment variables
 ```bash
 cp .env.example .env
