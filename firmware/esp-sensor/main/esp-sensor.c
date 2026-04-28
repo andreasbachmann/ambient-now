@@ -7,35 +7,32 @@
 #include "esp_mac.h"
 #include "esp_sleep.h"
 #include "esp_now.h"
-#include "i2c_bus.h"
+#include "driver/i2c_master.h"
 #include "bme280.h"
 #include "freertos/semphr.h"
 
+#define BME280_ADDR         0x76
+#define BME280_SCL_SPEED    100000
 
 // CONSTANTS
 static uint8_t bridge_mac[6];
-static const char *TAG =                "ESPSENDER";
+static const char *TAG =                "ESPSENSOR";
 static const uint64_t SLEEP_TIME =      2 * 60 * 1000000ULL;
-static const int I2C_MASTER_FREQ_HZ =   100000;
+static i2c_master_bus_handle_t i2c_bus;
+static i2c_master_dev_handle_t bme280_dev;
 
-// STRUCTS
-typedef struct {
-    float temperature;
-    float humidity;
-    float pressure;
-} ambient_t;
 
 // PARSE MAC ADR
-static void parse_MAC()
+static void parse_MAC(void)
 {
     sscanf(CONFIG_BRIDGE_MAC_ADR, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
            &bridge_mac[0], &bridge_mac[1], &bridge_mac[2],
            &bridge_mac[3], &bridge_mac[4], &bridge_mac[5]);
 }
 
-// WIFI
 
-static void initialize_wifi()
+// WIFI
+static void initialize_wifi(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
@@ -53,6 +50,7 @@ static void initialize_wifi()
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
+
 // ESPNOW
 static SemaphoreHandle_t send_semaphore = NULL;
 
@@ -66,7 +64,7 @@ static void esp_now_callback(const esp_now_send_info_t *tx_info, esp_now_send_st
     xSemaphoreGive(send_semaphore);
 }
 
-static void initialize_espnow()
+static void initialize_espnow(void)
 {
     ESP_ERROR_CHECK(esp_now_init());
 
@@ -80,42 +78,32 @@ static void initialize_espnow()
 
 
 // I2C
-static i2c_bus_handle_t initialize_i2c()
+static void init_i2c(void)
 {
-    i2c_config_t config = {
-        .mode =             I2C_MODE_MASTER,
-        .sda_io_num =       CONFIG_SDA_PIN_NUM,
-        .sda_pullup_en =    GPIO_PULLUP_ENABLE,
-        .scl_io_num =       CONFIG_SCL_PIN_NUM,
-        .scl_pullup_en =    GPIO_PULLUP_ENABLE,
-        .master.clk_speed = I2C_MASTER_FREQ_HZ
+    i2c_master_bus_config_t i2c_bus_cfg = {
+        .clk_source                     = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt              = 7,
+        .i2c_port                       = I2C_NUM_0,
+        .sda_io_num                     = CONFIG_SDA_PIN_NUM,
+        .scl_io_num                     = CONFIG_SCL_PIN_NUM,
+        .flags.enable_internal_pullup   = true
     };
 
-    return (i2c_bus_create(I2C_NUM_0, &config));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus));
 }
 
 // BME280
-static bme280_handle_t initialize_bme(i2c_bus_handle_t i2c_bus)
+static void add_bme_dev(void)
 {
-    bme280_handle_t bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT);
-    ESP_ERROR_CHECK(bme280_default_init(bme280));
-    vTaskDelay(pdMS_TO_TICKS(100));
+    i2c_device_config_t bme280_dev_cfg = {
+        .dev_addr_length        = I2C_ADDR_BIT_LEN_7,
+        .device_address         = BME280_ADDR,
+        .scl_speed_hz           = BME280_SCL_SPEED
+    };
 
-    return bme280;
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus, &bme280_dev_cfg, &bme280_dev));
 }
 
-static ambient_t take_readings(bme280_handle_t sensor)
-{
-    ambient_t reading = {0};
-
-    ESP_ERROR_CHECK(bme280_read_temperature(sensor, &reading.temperature));
-    ESP_ERROR_CHECK(bme280_read_humidity(sensor, &reading.humidity));
-    ESP_ERROR_CHECK(bme280_read_pressure(sensor, &reading.pressure));
-
-    ESP_LOGI(TAG, "took readings from BME280");
-
-    return reading;
-}
 
 void app_main(void)
 {
@@ -123,21 +111,23 @@ void app_main(void)
     initialize_wifi();
     initialize_espnow();
     
-    i2c_bus_handle_t i2c_bus = initialize_i2c();
-    if (i2c_bus == NULL) {
-        ESP_LOGE(TAG, "failed to initialize I2C");
+    init_i2c();
+    add_bme_dev();
+
+    esp_err_t ret = init_bme280(bme280_dev);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "init failed");
+        return;
     }
 
-    bme280_handle_t bme280 = initialize_bme(i2c_bus);
-    if (bme280 == NULL) {
-        ESP_LOGE(TAG, "failed to initialize BME280");
+    ambient_t reading = {0};
+    ret = read_bme280(&reading);
+
+    if (ret == ESP_OK) {
+        send_semaphore = xSemaphoreCreateBinary();
+        ESP_ERROR_CHECK(esp_now_send(bridge_mac, (uint8_t*) &reading, sizeof(reading)));
+        xSemaphoreTake(send_semaphore, portMAX_DELAY);
     }
-
-    ambient_t reading = take_readings(bme280);
-
-    send_semaphore = xSemaphoreCreateBinary();
-    ESP_ERROR_CHECK(esp_now_send(bridge_mac, (uint8_t*) &reading, sizeof(reading)));
-    xSemaphoreTake(send_semaphore, portMAX_DELAY);
 
     esp_sleep_enable_timer_wakeup(SLEEP_TIME);
     esp_deep_sleep_start();
