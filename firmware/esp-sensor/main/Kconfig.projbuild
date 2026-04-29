@@ -6,12 +6,6 @@ menu "Hardware Configuration"
         help
             MAC address of the ESP-Bridge in format F4:2D:C9:6B:EE:38
 
-    config ESPNOW_CHANNEL
-        int "ESP-NOW channel"
-        default 1
-        help
-            ESP-NOW channel must match the WiFi channel of the bridge's router.
-
     config SDA_PIN_NUM
         int "BME280 SDA pin number"
         default 21
