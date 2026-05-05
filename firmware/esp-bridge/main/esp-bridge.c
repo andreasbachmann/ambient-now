@@ -21,9 +21,9 @@ static const char *TAG = "ESPBRIDGE";
 // WIFI
 static EventGroupHandle_t s_wifi_event_group;
 static volatile bool s_wifi_connected = false;
-static int s_backoff_seconds = 1;
+static volatile int s_backoff_seconds = 1;
 static const int BACKOFF_MAX_SECONDS = 30;
-static TickType_t s_disconnect_started_tick = 0;
+static volatile TickType_t s_disconnect_started_tick = 0;
 static const int LONG_OUTAGE_REBOOT_SECONDS = 600;
 static TaskHandle_t s_reconnect_task = NULL;
 
@@ -130,7 +130,7 @@ static void initialize_wifi(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 
-    xTaskCreatePinnedToCore(wifi_reconnect_task, "wifi_reconnect", 2048,
+    xTaskCreatePinnedToCore(wifi_reconnect_task, "wifi_reconnect", 4096,
                             NULL, 4, &s_reconnect_task, 0);
 
     ESP_ERROR_CHECK(esp_wifi_start());
